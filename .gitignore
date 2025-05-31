@@ -1,0 +1,82 @@
+###############################################################################
+#  Root .gitignore for your mono-repo (Python + React)                        #
+###############################################################################
+
+############################
+#  ⬢  Node / React front   #
+############################
+# Dependency tree & cache
+node_modules/
+frontend/node_modules/
+
+# Production bundles
+frontend/build/
+frontend/dist/
+*.map
+
+# Tooling artefacts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+############################
+#  🐍  Python / FastAPI     #
+############################
+# Byte-compiled / caching
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.so
+
+# Virtual-envs (local or in sub-dirs)
+venv/
+*/venv/
+
+# Packaging artefacts
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+############################
+#  📊  Data & ML artefacts  #
+############################
+# Raw & intermediate datasets
+model/Data/
+model/**/*.csv
+
+# Trained models / checkpoints / catboost logs
+model/models/
+*.pkl
+model/catboost_info/
+
+# Plots & generated figures
+model/plots/
+*.png
+
+############################
+#  ️  General & system     #
+############################
+# Environment variables
+.env
+.env.*
+
+# IDE / editor junk
+.vscode/
+.idea/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Logs, coverage, misc
+*.log
+*.out
+coverage/
+*.cover
+

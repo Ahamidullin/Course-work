@@ -1,0 +1,11 @@
+{
+  "name": "my-monorepo-app",
+  "scripts": {
+    "frontend": "cd frontend && npm start",
+    "backend": "cd backend && uvicorn main:app --reload",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

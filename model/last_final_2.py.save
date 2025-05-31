@@ -1,0 +1,89 @@
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, precision_recall_curve, auc, average_precision_score
+from sklearn.ensemble import StackingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
+from imblearn.combine import SMOTEENN
+import shap
+import joblib
+
+os.makedirs("plots", exist_ok=True)
+
+df = pd.read_csv("Data/Base.csv")
+
+df['age_month_ratio'] = df['customer_age'] / (df['prev_address_months_count'] + 1)
+df['score_age_ratio'] = df['credit_risk_score'] / (df['customer_age'] + 1)
+
+if 'device_distinct_emails_8w' in df.columns and 'distinct_emails_4w' in df.columns:
+    df['email_growth'] = df['device_distinct_emails_8w'] / (df['date_of_birth_distinct_emails_4w'] + 1)
+
+y = df['fraud_bool']
+df.drop(columns=['fraud_bool', 'zip_count_4w', 'bank_branch_count_8w'], inplace=True)
+df = pd.get_dummies(df, drop_first=True)
+
+corr_matrix = df.corr().abs()
+upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+to_drop = [column for column in upper.columns if any(upper[column] > 0.9)]
+df.drop(columns=to_drop, inplace=True)
+
+X = df.copy()
+X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.25, random_state=42)
+
+smote_enn = SMOTEENN(random_state=42)
+X_res, y_res = smote_enn.fit_resample(X_train, y_train)
+
+weights = np.where(y_res == 1, 10, 1)
+
+estimators = [
+    ('lr', LogisticRegression(max_iter=1000)),
+    ('rf', RandomForestClassifier(n_estimators=100, random_state=42)),
+    ('xgb', XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42))
+]
+
+final_model = StackingClassifier(
+    estimators=estimators,
+    final_estimator=LGBMClassifier(scale_pos_weight=(y_res == 0).sum() / (y_res == 1).sum(), random_state=42),
+    passthrough=True,
+    cv=5
+)
+
+final_model.fit(X_res, y_res, final_estimator__sample_weight=weights)
+
+probs = final_model.predict_proba(X_test)[:, 1]
+prec, rec, thresholds = precision_recall_curve(y_test, probs)
+fscore = 2 * prec * rec / (prec + rec + 1e-8)
+best_idx = np.argmax(fscore)
+best_threshold = thresholds[best_idx]
+y_pred = (probs >= best_threshold).astype(int)
+
+print("Best Threshold:", best_threshold)
+print("Classification Report:\n", classification_report(y_test, y_pred))
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+print("ROC AUC:", roc_auc_score(y_test, probs))
+print("AUC-PR:", average_precision_score(y_test, probs))
+
+plt.figure(figsize=(8, 6))
+plt.plot(rec, prec, label=f'AUC-PR = {average_precision_score(y_test, probs):.3f}')
+plt.xlabel("Recall")
+plt.ylabel("Precision")
+plt.title("Precision-Recall Curve")
+plt.legend()
+plt.grid()
+plt.tight_layout()
+plt.savefig("plots/precision_recall_curve.png")
+plt.close()
+
+print("SHAP Analysis...")
+explainer = shap.Explainer(final_model.final_estimator_, X_test)
+shap_values = explainer(X_test)
+shap.summary_plot(shap_values, X_test, max_display=15, show=False)
+plt.tight_layout()
+plt.savefig("plots/shap_summary_plot.png")
